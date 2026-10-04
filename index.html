@@ -30,6 +30,13 @@
   .bar-fill { height:100%; border-radius:999px; transition:width .4s; }
   .budget-bg { background:#e5e7eb; border-radius:999px; height:16px; overflow:hidden; margin-top:6px; }
   .budget-fill { height:100%; border-radius:999px; transition:width .4s; }
+  .toggle { background:rgba(255,255,255,.2); border:none; color:#fff; padding:8px 14px; border-radius:999px; cursor:pointer; font-size:.85rem; margin-top:10px; }
+  body.dark { background:#111827; color:#e5e7eb; }
+  body.dark .card, body.dark .item { background:#1f2937; color:#e5e7eb; }
+  body.dark input, body.dark select { background:#374151; color:#e5e7eb; border-color:#4b5563; }
+  body.dark h2 { color:#d1d5db; }
+  body.dark .bar-bg, body.dark .budget-bg { background:#374151; }
+  .export-btn { width:100%; padding:12px; border:none; border-radius:12px; background:#f59e0b; color:#fff; font-weight:600; cursor:pointer; margin-top:10px; }
 </style>
 </head>
 <body>
@@ -39,6 +46,7 @@
     <div class="label">Total del mes</div>
     <div class="amount" id="total">$0.00</div>
     <div id="presupuestoTxt" style="font-size:.8rem; opacity:.85; margin-top:4px;"></div>
+    <button class="toggle" onclick="toggleTema()">🌙 Modo oscuro / ☀️ Claro</button>
   </div>
 </header>
 
@@ -73,7 +81,8 @@
 
 <div class="card">
   <h2>📋 Tus gastos</h2>
-  <div id="lista"></div>
+  <button class="export-btn" onclick="exportarCSV()">📥 Exportar a Excel (CSV)</button>
+  <div id="lista" style="margin-top:10px;"></div>
 </div>
 
 <script>
@@ -83,6 +92,21 @@ let presupuesto = parseFloat(localStorage.getItem('presupuesto') || '0');
 let editando = -1;
 
 function guardar() { localStorage.setItem('gastos', JSON.stringify(gastos)); }
+function toggleTema() {
+  document.body.classList.toggle('dark');
+  localStorage.setItem('tema', document.body.classList.contains('dark') ? 'dark' : 'light');
+}
+function exportarCSV() {
+  if (gastos.length === 0) { alert('No hay gastos para exportar'); return; }
+  let csv = 'Descripción,Monto,Categoría,Fecha\n';
+  gastos.forEach(g => csv += `"${g.desc}",${g.monto.toFixed(2)},"${g.cat}",${g.fecha.slice(0,10)}\n`);
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'mis-gastos.csv';
+  a.click();
+}
+if (localStorage.getItem('tema') === 'dark') document.body.classList.add('dark');
 function guardarPresupuesto() {
   presupuesto = parseFloat(document.getElementById('presupuesto').value) || 0;
   localStorage.setItem('presupuesto', presupuesto); pintar();
