@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#4f46e5">
+<title>Mis Gastos</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
+  body { background:#f3f4f6; color:#1f2937; max-width:480px; margin:0 auto; min-height:100vh; padding-bottom:80px; }
+  header { background:linear-gradient(135deg,#4f46e5,#7c3aed); color:#fff; padding:20px; border-radius:0 0 24px 24px; }
+  header h1 { font-size:1.4rem; }
+  .total-card { background:rgba(255,255,255,.15); border-radius:16px; padding:16px; margin-top:12px; }
+  .total-card .label { font-size:.85rem; opacity:.85; }
+  .total-card .amount { font-size:2rem; font-weight:700; }
+  .card { background:#fff; margin:16px; padding:16px; border-radius:16px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+  .card h2 { font-size:1rem; margin-bottom:10px; color:#374151; }
+  form input, form select { width:100%; padding:12px; margin-bottom:10px; border:1.5px solid #e5e7eb; border-radius:12px; font-size:1rem; }
+  form button { width:100%; padding:14px; border:none; border-radius:12px; background:#4f46e5; color:#fff; font-size:1rem; font-weight:600; cursor:pointer; }
+  .item { display:flex; justify-content:space-between; align-items:center; background:#f9fafb; padding:12px 14px; border-radius:12px; margin-bottom:8px; }
+  .item .cat { font-size:.72rem; padding:2px 8px; border-radius:999px; color:#fff; }
+  .item .amt { font-weight:700; color:#dc2626; }
+  .item button { background:none; border:none; font-size:1rem; cursor:pointer; margin-left:8px; }
+  .empty { text-align:center; color:#9ca3af; padding:20px; }
+  .bar-row { margin-bottom:10px; }
+  .bar-row .top { display:flex; justify-content:space-between; font-size:.85rem; margin-bottom:3px; }
+  .bar-bg { background:#e5e7eb; border-radius:999px; height:12px; overflow:hidden; }
+  .bar-fill { height:100%; border-radius:999px; transition:width .4s; }
+  .budget-bg { background:#e5e7eb; border-radius:999px; height:16px; overflow:hidden; margin-top:6px; }
+  .budget-fill { height:100%; border-radius:999px; transition:width .4s; }
+</style>
+</head>
+<body>
+<header>
+  <h1>💰 Mis Gastos</h1>
+  <div class="total-card">
+    <div class="label">Total del mes</div>
+    <div class="amount" id="total">$0.00</div>
+    <div id="presupuestoTxt" style="font-size:.8rem; opacity:.85; margin-top:4px;"></div>
+  </div>
+</header>
+
+<div class="card">
+  <h2>🎯 Presupuesto mensual</h2>
+  <input type="number" id="presupuesto" placeholder="Ej. 500" style="width:100%;padding:12px;border:1.5px solid #e5e7eb;border-radius:12px;font-size:1rem;margin-bottom:8px;">
+  <button onclick="guardarPresupuesto()" style="width:100%;padding:12px;border:none;border-radius:12px;background:#10b981;color:#fff;font-weight:600;cursor:pointer;">Guardar presupuesto</button>
+  <div class="budget-bg"><div class="budget-fill" id="budgetFill" style="background:#10b981;width:0%"></div></div>
+</div>
+
+<form class="card" id="form" style="margin-top:0;">
+  <h2>➕ Nuevo gasto</h2>
+  <input type="text" id="desc" placeholder="¿En qué gastaste? (ej. Tacos)" required>
+  <input type="number" id="monto" placeholder="Monto ($)" step="0.01" min="0" required>
+  <select id="cat">
+    <option>🍔 Comida</option>
+    <option>🚌 Transporte</option>
+    <option>🏠 Casa</option>
+    <option>🎉 Diversión</option>
+    <option>🛍️ Compras</option>
+    <option>💊 Salud</option>
+    <option>📦 Otro</option>
+  </select>
+  <input type="date" id="fecha">
+  <button type="submit">Agregar gasto</button>
+</form>
+
+<div class="card">
+  <h2>📊 Gastos por categoría</h2>
+  <div id="grafica"></div>
+</div>
+
+<div class="card">
+  <h2>📋 Tus gastos</h2>
+  <div id="lista"></div>
+</div>
+
+<script>
+const COLORS = { '🍔 Comida':'#f59e0b','🚌 Transporte':'#3b82f6','🏠 Casa':'#10b981','🎉 Diversión':'#ec4899','🛍️ Compras':'#8b5cf6','💊 Salud':'#ef4444','📦 Otro':'#6b7280' };
+let gastos = JSON.parse(localStorage.getItem('gastos') || '[]');
+let presupuesto = parseFloat(localStorage.getItem('presupuesto') || '0');
+let editando = -1;
+
+function guardar() { localStorage.setItem('gastos', JSON.stringify(gastos)); }
+function guardarPresupuesto() {
+  presupuesto = parseFloat(document.getElementById('presupuesto').value) || 0;
+  localStorage.setItem('presupuesto', presupuesto); pintar();
+}
+
+function delMes() {
+  const ahora = new Date();
+  return gastos.filter(g => { const d = new Date(g.fecha); return d.getMonth() === ahora.getMonth() && d.getFullYear() === ahora.getFullYear(); });
+}
+
+function pintar() {
+  const lista = document.getElementById('lista');
+  const delM = delMes();
+  const total = delM.reduce((s,g) => s + g.monto, 0);
+  document.getElementById('total').textContent = '$' + total.toFixed(2);
+
+  // Presupuesto
+  const pct = presupuesto > 0 ? Math.min(total / presupuesto * 100, 100) : 0;
+  const fill = document.getElementById('budgetFill');
+  fill.style.width = pct + '%';
+  fill.style.background = pct > 90 ? '#ef4444' : pct > 70 ? '#f59e0b' : '#10b981';
+  document.getElementById('presupuestoTxt').textContent = presupuesto > 0
+    ? `${pct.toFixed(0)}% de tu presupuesto de $${presupuesto.toFixed(2)}`
+    : 'Define un presupuesto arriba 👆';
+
+  // Gráfica por categoría
+  const porCat = {};
+  delM.forEach(g => porCat[g.cat] = (porCat[g.cat] || 0) + g.monto);
+  const max = Math.max(...Object.values(porCat), 1);
+  document.getElementById('grafica').innerHTML = Object.keys(porCat).length === 0
+    ? '<div class="empty">Sin datos este mes</div>'
+    : Object.entries(porCat).sort((a,b)=>b[1]-a[1]).map(([c,v]) => `
+      <div class="bar-row">
+        <div class="top"><span>${c}</span><strong>$${v.toFixed(2)}</strong></div>
+        <div class="bar-bg"><div class="bar-fill" style="width:${v/max*100}%;background:${COLORS[c]||'#6b7280'}"></div></div>
+      </div>`).join('');
+
+  // Lista
+  if (gastos.length === 0) { lista.innerHTML = '<div class="empty">Aún no tienes gastos. ¡Agrega el primero! 👆</div>'; return; }
+  lista.innerHTML = gastos.slice().reverse().map((g,i) => {
+    const idx = gastos.length - 1 - i;
+    return `<div class="item">
+      <div><strong>${g.desc}</strong> · <small>${new Date(g.fecha).toLocaleDateString()}</small><br>
+      <span class="cat" style="background:${COLORS[g.cat]||'#6b7280'}">${g.cat}</span></div>
+      <div style="display:flex;align-items:center;"><span class="amt">-$${g.monto.toFixed(2)}</span>
+      <button onclick="editar(${idx})">✏️</button><button onclick="borrar(${idx})">🗑️</button></div>
+    </div>`;
+  }).join('');
+}
+
+function borrar(i) { if (confirm('¿Borrar este gasto?')) { gastos.splice(i,1); guardar(); pintar(); } }
+function editar(i) {
+  const g = gastos[i];
+  document.getElementById('desc').value = g.desc;
+  document.getElementById('monto').value = g.monto;
+  document.getElementById('cat').value = g.cat;
+  document.getElementById('fecha').value = g.fecha.slice(0,10);
+  editando = i;
+  document.querySelector('#form button').textContent = '💾 Guardar cambios';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+document.getElementById('form').addEventListener('submit', e => {
+  e.preventDefault();
+  const g = {
+    desc: document.getElementById('desc').value,
+    monto: parseFloat(document.getElementById('monto').value),
+    cat: document.getElementById('cat').value,
+    fecha: (document.getElementById('fecha').value || new Date().toISOString().slice(0,10)) + 'T12:00:00'
+  };
+  if (editando >= 0) { gastos[editando] = g; editando = -1; document.querySelector('#form button').textContent = 'Agregar gasto'; }
+  else gastos.push(g);
+  guardar(); pintar(); e.target.reset();
+});
+
+document.getElementById('fecha').value = new Date().toISOString().slice(0,10);
+if (presupuesto) document.getElementById('presupuesto').value = presupuesto;
+pintar();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
